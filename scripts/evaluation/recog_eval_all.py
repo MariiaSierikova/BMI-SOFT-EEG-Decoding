@@ -1,16 +1,17 @@
 """
-Evaluates the TreeOfTrees on every MOVING person and prints one table per mode.
+Evaluates a model on every MOVING person and prints one table per mode.
 Each row is one person, the last row is the mean over all people.
 """
 # ================================================================
 # 0. Section: IMPORTS
 # ================================================================
+import argparse
 import contextlib
 import io
 
 import numpy as np
 
-from scripts.evaluation.recog_eval_offline import evaluate
+from scripts.evaluation.recog_eval_offline import MODELS, evaluate
 from scripts.treeoftrees.moving_data import DATA
 
 
@@ -41,14 +42,14 @@ Flips/s:          how often the answer changes inside a movement (lower = steadi
 # ================================================================
 # 2. Section: FUNCTIONS
 # ================================================================
-def evaluate_everyone() -> dict[str, dict[int, dict]]:
+def evaluate_everyone(model_name: str) -> dict[str, dict[int, dict]]:
     """Evaluate every person and keep only the numbers of each mode."""
     results: dict[str, dict[int, dict]] = {mode: {} for mode in MODES}
     for path in sorted(DATA.glob("*.edf")):
         subject = int(path.stem.split("_")[2])
         # The long report of each person is hidden, only the numbers are kept
         with contextlib.redirect_stdout(io.StringIO()):
-            person = evaluate(path)
+            person = evaluate(path, model_name=model_name)
         for mode in MODES:
             results[mode][subject] = person[mode]
     return results
@@ -79,10 +80,16 @@ def print_table(mode: str, rows: dict[int, dict]) -> None:
 # 3. Section: MAIN
 # ================================================================
 if __name__ == "__main__":
-    # 1. Evaluate all people
-    results = evaluate_everyone()
+    # 1. Read which model to evaluate
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--model", choices=list(MODELS), default="treeoftrees")
+    args = parser.parse_args()
 
-    # 2. Print one table per mode and explain the columns
+    # 2. Evaluate all people
+    results = evaluate_everyone(args.model)
+
+    # 3. Print one table per mode and explain the columns
+    print(f"Model: {args.model}")
     for mode in MODES:
         print_table(mode, results[mode])
     print(LEGEND)

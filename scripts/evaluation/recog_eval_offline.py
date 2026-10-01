@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
+from sklearn.tree import DecisionTreeClassifier
+
 from scripts.evaluation.recog_eval_data import (
     load_recording,
     make_batches,
@@ -16,17 +18,25 @@ from scripts.treeoftrees.moving_data import DATA
 from scripts.treeoftrees.tree_of_trees import TreeOfTrees
 
 
+# Models that can be evaluated: name -> function that builds a new untrained model
+MODELS = {
+    "treeoftrees": TreeOfTrees,
+    # The single tree of the EMG evaluation (DecisionTreeFactory)
+    "tree": lambda: DecisionTreeClassifier(random_state=42, class_weight="balanced"),
+}
+
+
 # ================================================================
-# 1. Train the TreeOfTrees on non-overlapping batches
+# 1. Train a model on non-overlapping batches
 # ================================================================
 # Keep only the clean batches: fully inside a movement or a rest.
 # Extract the EEG features (7 per channel) of each batch.
-# Train the TreeOfTrees on them and print how well it knows its training batches.
-def get_model(train_batches, train_infos):
+# Train the chosen model on them and print how well it knows its training batches.
+def get_model(train_batches, train_infos, model_name):
     clean = np.asarray([info.clean for info in train_infos])
     labels = np.asarray([info.truth for info in train_infos])[clean]
     features = get_features(train_batches[clean])
-    model = TreeOfTrees().fit(features, labels)
+    model = MODELS[model_name]().fit(features, labels)
     print(f"Training accuracy: {(model.predict(features) == labels).mean():.1%}")
     return model
 
@@ -45,6 +55,7 @@ def evaluate(
     mode: str = "both",
     train_per_code: int = 4,
     csv_path: Path | None = None,
+    model_name: str = "treeoftrees",
 ) -> dict:
     if not edf.is_file():
         raise FileNotFoundError(edf)
@@ -58,7 +69,7 @@ def evaluate(
     train_batches, train_infos = make_batches(
         eeg, timestamps, sfreq, trials, bounds, train_trials, window_ms, window_ms
     )
-    model = get_model(train_batches, train_infos)
+    model = get_model(train_batches, train_infos, model_name)
     del train_batches
 
     modes = []
@@ -68,6 +79,7 @@ def evaluate(
         modes.append(("overlap", overlap_step_ms))
 
     print(f"EDF: {edf}")
+    print(f"Model: {model_name}")
     print(f"EEG: {eeg.shape[1]} channels, {sfreq:g} Hz")
     print(f"Trials: {len(train_trials)} train, {len(test_trials)} test")
     print(f"Window: {window_ms} ms; same model in every test mode")
@@ -120,13 +132,14 @@ def main() -> None:
     parser.add_argument("--mode", choices=("both", "non-overlap", "overlap"), default="both")
     parser.add_argument("--train-per-code", type=int, default=4)
     parser.add_argument("--csv", type=Path, help="Save test predictions from both modes")
+    parser.add_argument("--model", choices=list(MODELS), default="treeoftrees")
     args = parser.parse_args()
     paths = sorted(DATA.glob(f"*_Subj_{args.subject:02d}_*.edf"))
     if not paths:
         parser.error(f"No EDF file for subject {args.subject} in {DATA}")
     evaluate(
         paths[0], args.window_ms, args.overlap_step_ms, args.mode,
-        args.train_per_code, args.csv,
+        args.train_per_code, args.csv, args.model,
     )
 
 
