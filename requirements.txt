@@ -2,3 +2,7 @@
 requests>=2.32
 tqdm>=4.66
 python-dotenv>=1.0
+
+# TreeOfTrees (scripts/treeoftrees)
+numpy>=2.4
+mne>=1.12
