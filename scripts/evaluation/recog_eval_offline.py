@@ -20,7 +20,7 @@ from scripts.treeoftrees.tree_of_trees import TreeOfTrees
 # 1. Train the TreeOfTrees on non-overlapping batches
 # ================================================================
 # Keep only the clean batches: fully inside a movement or a rest.
-# Extract the 224 EEG features (7 features x 32 channels) of each batch.
+# Extract the EEG features (7 per channel) of each batch.
 # Train the TreeOfTrees on them and print how well it knows its training batches.
 def get_model(train_batches, train_infos):
     clean = np.asarray([info.clean for info in train_infos])
@@ -45,7 +45,7 @@ def evaluate(
     mode: str = "both",
     train_per_code: int = 4,
     csv_path: Path | None = None,
-) -> None:
+) -> dict:
     if not edf.is_file():
         raise FileNotFoundError(edf)
     if window_ms <= 0 or train_per_code <= 0:
@@ -106,6 +106,7 @@ def evaluate(
     if csv_path is not None:
         write_predictions(csv_path, csv_rows)
         print(f"Prediction sequence: {csv_path}")
+    return results
 
 # ================================================================
 # 3. Read command-line options and start the comparison
