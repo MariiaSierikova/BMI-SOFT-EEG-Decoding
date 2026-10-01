@@ -100,11 +100,12 @@ def trial_bounds(trials: list[Trial]) -> dict:
 # ================================================================
 # 4. Load the EDF and convert the EEG to microvolts
 # ================================================================
-# Load the recording once: 32 EEG channels, band-pass filtered.
+# Load the recording once: band-pass filtered, without the channels that have no signal.
 # Extract its trials and rest bounds.
 # Return EEG, timestamps, sampling rate, trials, and bounds.
 def load_recording(path: Path):
     raw = load_subject(path)
+    raw.drop_channels(raw.info["bads"])
     events, _ = mne.events_from_annotations(raw, event_id=EVENT_ID, verbose="ERROR")
     sfreq = float(raw.info["sfreq"])
     trials = extract_trials(events, sfreq, raw.times[-1])

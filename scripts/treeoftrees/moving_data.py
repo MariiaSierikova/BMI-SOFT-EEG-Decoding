@@ -53,14 +53,22 @@ HIGH_HZ: float = 45.0
 # 2. Section: FUNCTIONS
 # ================================================================
 def load_subject(path: Path) -> mne.io.BaseRaw:
-    """Read one EDF file and filter the whole recording."""
+    """Read one EDF file, filter it and subtract the average of the channels."""
     raw = mne.io.read_raw_edf(path, preload=True, verbose="ERROR")
 
     # 1. Keep the 32 EEG channels (X, Y and Z are head-movement sensors)
     raw.drop_channels(["X", "Y", "Z"])
 
-    # 2. Remove slow drifts and fast noise before cutting, to avoid edge effects
+    # 2. Find the channels without signal: an electrode without contact never changes
+    spread = np.ptp(raw.get_data(), axis=1)
+    flat = [name for name, value in zip(raw.ch_names, spread) if value == 0]
+
+    # 3. Remove slow drifts and fast noise before cutting, to avoid edge effects
     raw.filter(LOW_HZ, HIGH_HZ, verbose="ERROR")
+
+    # 4. Subtract the average of the working channels from every channel
+    raw.info["bads"] = flat
+    raw.set_eeg_reference("average", verbose="ERROR")
 
     return raw
 

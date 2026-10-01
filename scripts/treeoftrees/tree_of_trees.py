@@ -25,7 +25,7 @@ from scripts.treeoftrees.moving_data import DATA, cut_windows, load_subject
 # Trees: the order in which they are asked (the first ones decide most often)
 TREE_ORDER: list[str] = ["noGesture", "open_close", "wrist_rotation", "finger_tapping"]
 FALLBACK: str = "noGesture"
-MAX_DEPTH: int | None = None
+MAX_DEPTH: int | None = 5
 RANDOM_STATE: int = 42
 
 # People that are only used for testing, the others are used for training
