@@ -4,7 +4,7 @@ Trains the TreeOfTrees on the MOVING EEG windows and tests it on other people.
 The TreeOfTrees is a chain of yes/no decision trees, one per class. Each tree only
 answers "is this window my class?". To classify a window the trees are asked one
 after the other and the first "yes" wins. If every tree says "no", the answer is
-"rest" (do nothing).
+"noGesture" (do nothing).
 """
 # ================================================================
 # 0. Section: IMPORTS
@@ -23,8 +23,8 @@ from scripts.treeoftrees.moving_data import DATA, cut_windows, load_subject
 # 1. Section: INPUTS
 # ================================================================
 # Trees: the order in which they are asked (the first ones decide most often)
-TREE_ORDER: list[str] = ["rest", "open_close", "wrist_rotation", "finger_tapping"]
-FALLBACK: str = "rest"
+TREE_ORDER: list[str] = ["noGesture", "open_close", "wrist_rotation", "finger_tapping"]
+FALLBACK: str = "noGesture"
 MAX_DEPTH: int | None = None
 RANDOM_STATE: int = 42
 

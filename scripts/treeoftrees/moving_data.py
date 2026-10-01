@@ -3,10 +3,7 @@ Reads the MOVING EEG recordings (one EDF file per person) and cuts them into
 1-second windows, each labeled with what the person was doing.
 
 A window is a table of numbers: one row per EEG channel, one column per time
-point. The labels are: rest, open_close, wrist_rotation and finger_tapping.
-
-Run it from the repository root:
-    python -m scripts.treeoftrees.moving_data
+point. The labels are: noGesture, open_close, wrist_rotation and finger_tapping.
 """
 # ================================================================
 # 0. Section: IMPORTS
@@ -29,7 +26,7 @@ EVENT_ID: dict[str, int] = {f"Trigger#{i}": i for i in range(1, 18)}
 
 # Triggers of the 6-second periods: rest and executed movements.
 TRIGGER_TO_CLASS: dict[int,str] = {
-    1: "rest", 7: "rest", 13: "rest",
+    1: "noGesture", 7: "noGesture", 13: "noGesture",
     5: "open_close",
     11: "wrist_rotation",
     17: "finger_tapping",
@@ -41,7 +38,7 @@ WINDOW_SECONDS: int = 1
 
 # Seconds skipped at the start of a period, the person does not react instantly
 SKIP_SECONDS: dict[str, int] = {
-    "rest": 2,
+    "noGesture": 2,
     "open_close": 1,
     "wrist_rotation": 1,
     "finger_tapping": 1,
