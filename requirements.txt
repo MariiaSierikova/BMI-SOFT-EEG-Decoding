@@ -6,3 +6,4 @@ python-dotenv>=1.0
 # TreeOfTrees (scripts/treeoftrees)
 numpy>=2.4
 mne>=1.12
+scikit-learn>=1.8
