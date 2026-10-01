@@ -150,6 +150,8 @@ def report_predictions(
         "classification": accuracy,
         "always_no_gesture": float(np.mean(rest)),
         "balanced": balanced,
+        "truth": truth,
+        "predictions": scored_predictions,
         "recognition": recognized / len(test_trials),
         "false_gesture": false_gesture_rate,
         "flips_per_second": flips,

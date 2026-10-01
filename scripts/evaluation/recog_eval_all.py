@@ -13,6 +13,9 @@ import numpy as np
 
 from scripts.evaluation.recog_eval_offline import MODELS, evaluate
 from scripts.treeoftrees.moving_data import DATA
+from scripts.evaluation.recog_eval_metrics import print_gesture_matrices
+
+from sklearn.metrics import confusion_matrix
 
 
 # ================================================================
@@ -75,6 +78,23 @@ def print_table(mode: str, rows: dict[int, dict]) -> None:
         means.append(fmt.format(np.nanmean([row[key] for row in rows.values()])))
     print_row("Mean", means, widths)
 
+def print_gestures(rows: dict[int, dict]) -> None:
+    """Print the confusion matrix and the TP/FP tables for all people together."""
+    truth = np.concatenate([row["truth"] for row in rows.values()])
+    predictions = np.concatenate([row["predictions"] for row in rows.values()])
+    classes = ["noGesture"] + sorted((set(truth) | set(predictions)) - {"noGesture"})
+    matrix = confusion_matrix(truth, predictions, labels=classes)
+
+    print("\nConfusion matrix, all people together (non-overlap)")
+    print("Rows: what really happened. Columns: the answer. Each row adds up to 100%.")
+    header = "".join(f"{name:>16}" for name in classes)
+    print(f"{'':<16}{header}{'windows':>10}")
+    for name, counts in zip(classes, matrix):
+        cells = "".join(f"{count / counts.sum():>16.1%}" for count in counts)
+        print(f"{name:<16}{cells}{counts.sum():>10}")
+
+    print()
+    print_gesture_matrices(truth, predictions)
 
 # ================================================================
 # 3. Section: MAIN
@@ -93,3 +113,4 @@ if __name__ == "__main__":
     for mode in MODES:
         print_table(mode, results[mode])
     print(LEGEND)
+    print_gestures(results["non-overlap"])
