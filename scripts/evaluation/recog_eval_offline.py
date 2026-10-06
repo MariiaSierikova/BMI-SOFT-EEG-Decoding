@@ -30,7 +30,7 @@ MODELS = {
 # 1. Train a model on non-overlapping batches
 # ================================================================
 # Keep only the clean batches: fully inside a movement or a rest.
-# Extract the EEG features (7 per channel) of each batch.
+# Extract the EEG features of each batch.
 # Train the chosen model on them and print how well it knows its training batches.
 def get_model(train_batches, train_infos, model_name):
     clean = np.asarray([info.clean for info in train_infos])

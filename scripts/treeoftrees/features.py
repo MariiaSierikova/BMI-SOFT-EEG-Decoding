@@ -1,8 +1,9 @@
 """
 Computes simple features of the EEG windows: the numbers a decision tree learns from.
 
-Every window (channels x time points) is summarized by 7 numbers per channel, for
-example how strong the signal is or how often it changes direction.
+Every window (channels x time points) is summarized by 12 numbers per channel: 7 about
+the signal in time (for example how strong it is or how often it changes direction) and
+5 about its frequencies (how strong each brain rhythm is).
 """
 # ================================================================
 # 0. Section: IMPORTS
@@ -54,16 +55,63 @@ def log_det(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 
 
 # ================================================================
-# 2. Section: Mapped
+# 2. Section: Frequency-domain features
 # ================================================================
-FEATURE_FUNCTIONS = [mav, std, maxav, rms, wl, ssc, log_det]
+# The MOVING recordings have 500 samples per second
+SAMPLING_HZ: float = 500.0
+
+
+def band_power(x: np.ndarray, low: float, high: float) -> np.ndarray:
+    """Power of the signal between two frequencies (Hz): how strong one rhythm is."""
+    # 1. Split the signal into its frequencies (FFT) and take the power of each one
+    power = np.abs(np.fft.rfft(x, axis=2)) ** 2
+    freqs = np.fft.rfftfreq(x.shape[2], d=1 / SAMPLING_HZ)
+
+    # 2. Add up the powers of the frequencies inside the band
+    return np.sum(power[:, :, (freqs >= low) & (freqs < high)], axis=2)
+
+
+def theta(x: np.ndarray) -> np.ndarray:
+    """Theta rhythm (4-8 Hz): slow waves."""
+    return band_power(x, 4, 8)
+
+
+def alpha(x: np.ndarray) -> np.ndarray:
+    """Alpha rhythm (8-13 Hz): the resting rhythm, called mu over the motor area."""
+    return band_power(x, 8, 13)
+
+
+def beta_low(x: np.ndarray) -> np.ndarray:
+    """Low beta rhythm (13-20 Hz): linked to movement, it gets weaker when we move."""
+    return band_power(x, 13, 20)
+
+
+def beta_high(x: np.ndarray) -> np.ndarray:
+    """High beta rhythm (20-30 Hz): faster waves, also linked to movement."""
+    return band_power(x, 20, 30)
+
+
+def gamma(x: np.ndarray) -> np.ndarray:
+    """Gamma rhythm (30-45 Hz): the fastest waves we keep."""
+    return band_power(x, 30, 45)
 
 
 # ================================================================
-# 3. Section: FUNCTIONS
+# 3. Section: Mapped
+# ================================================================
+TIME_FEATURE_FUNCTIONS = [mav, std, maxav, rms, wl, ssc, log_det]
+FREQ_FEATURE_FUNCTIONS = [theta, alpha, beta_low, beta_high, gamma]
+
+# The features the model uses. The frequency ones are slow on the board: for the board
+# keep only TIME_FEATURE_FUNCTIONS
+FEATURE_FUNCTIONS = TIME_FEATURE_FUNCTIONS + FREQ_FEATURE_FUNCTIONS
+
+
+# ================================================================
+# 4. Section: FUNCTIONS
 # ================================================================
 def get_features(windows: np.ndarray) -> np.ndarray:
-    """Compute the 7 features of every channel of every window.
+    """Compute the features of every channel of every window.
 
     Returns a table with one row per window and one column per feature and
     channel: first the values of the first feature for all channels, then of the
@@ -83,7 +131,7 @@ def get_feature_names(channels: list[str]) -> list[str]:
 
 
 # ================================================================
-# 4. Section: MAIN
+# 5. Section: MAIN
 # ================================================================
 if __name__ == "__main__":
     # 1. Load one person and cut the windows
