@@ -1,9 +1,10 @@
 """
 Computes simple features of the EEG windows: the numbers a decision tree learns from.
 
-Every window (channels x time points) is summarized by 12 numbers per channel: 7 about
+Every window (channels x time points) is summarized by 16 numbers per channel: 7 about
 the signal in time (for example how strong it is or how often it changes direction) and
-5 about its frequencies (how strong each brain rhythm is).
+9 about its frequencies (where the power of the signal is, and how strong each brain
+rhythm is).
 """
 # ================================================================
 # 0. Section: IMPORTS
@@ -61,46 +62,117 @@ def log_det(x: np.ndarray, eps: float = 1e-12) -> np.ndarray:
 SAMPLING_HZ: float = 500.0
 
 
-def band_power(x: np.ndarray, low: float, high: float) -> np.ndarray:
+def fft_power(x: np.ndarray) -> np.ndarray:
+    """
+    One-sided FFT power spectrum.
+
+    Returns:
+        shape (n_epochs, n_channels, n_freqs)
+    """
+    fft = np.fft.rfft(x, axis=2)
+    return np.abs(fft) ** 2
+
+
+def fft_freqs(x: np.ndarray, sfreq: float) -> np.ndarray:
+    """
+    One-sided FFT frequency vector.
+
+    Returns:
+        shape (n_freqs,)
+    """
+    return np.fft.rfftfreq(x.shape[2], d=1.0 / sfreq)
+
+
+def total_power(x: np.ndarray, sfreq: float) -> np.ndarray:
+    """Total spectral power."""
+    power = fft_power(x)
+    return np.sum(power, axis=2)
+
+
+def mean_freq(x: np.ndarray, sfreq: float) -> np.ndarray:
+    """Mean frequency."""
+    power = fft_power(x)
+    f = fft_freqs(x, sfreq)
+
+    denom = np.sum(power, axis=2)
+    denom = np.maximum(denom, 1e-12)
+
+    return np.sum(power * f[None, None, :], axis=2) / denom
+
+
+def median_freq(x: np.ndarray, sfreq: float) -> np.ndarray:
+    """Median frequency based on cumulative spectral power."""
+    power = fft_power(x)
+    f = fft_freqs(x, sfreq)
+
+    cumulative_power = np.cumsum(power, axis=2)
+    half_power = cumulative_power[:, :, -1:] / 2.0
+
+    idx = np.argmax(cumulative_power >= half_power, axis=2)
+
+    return f[idx]
+
+
+def peak_freq(x: np.ndarray, sfreq: float) -> np.ndarray:
+    """Peak frequency."""
+    power = fft_power(x)
+    f = fft_freqs(x, sfreq)
+
+    idx = np.argmax(power, axis=2)
+
+    return f[idx]
+
+
+def band_power(x: np.ndarray, sfreq: float, low: float, high: float) -> np.ndarray:
     """Power of the signal between two frequencies (Hz): how strong one rhythm is."""
-    # 1. Split the signal into its frequencies (FFT) and take the power of each one
-    power = np.abs(np.fft.rfft(x, axis=2)) ** 2
-    freqs = np.fft.rfftfreq(x.shape[2], d=1 / SAMPLING_HZ)
+    # 1. Take the power of every frequency
+    power = fft_power(x)
+    freqs = fft_freqs(x, sfreq)
 
     # 2. Add up the powers of the frequencies inside the band
     return np.sum(power[:, :, (freqs >= low) & (freqs < high)], axis=2)
 
 
-def theta(x: np.ndarray) -> np.ndarray:
+def theta(x: np.ndarray, sfreq: float) -> np.ndarray:
     """Theta rhythm (4-8 Hz): slow waves."""
-    return band_power(x, 4, 8)
+    return band_power(x, sfreq, 4, 8)
 
 
-def alpha(x: np.ndarray) -> np.ndarray:
+def alpha(x: np.ndarray, sfreq: float) -> np.ndarray:
     """Alpha rhythm (8-13 Hz): the resting rhythm, called mu over the motor area."""
-    return band_power(x, 8, 13)
+    return band_power(x, sfreq, 8, 13)
 
 
-def beta_low(x: np.ndarray) -> np.ndarray:
+def beta_low(x: np.ndarray, sfreq: float) -> np.ndarray:
     """Low beta rhythm (13-20 Hz): linked to movement, it gets weaker when we move."""
-    return band_power(x, 13, 20)
+    return band_power(x, sfreq, 13, 20)
 
 
-def beta_high(x: np.ndarray) -> np.ndarray:
+def beta_high(x: np.ndarray, sfreq: float) -> np.ndarray:
     """High beta rhythm (20-30 Hz): faster waves, also linked to movement."""
-    return band_power(x, 20, 30)
+    return band_power(x, sfreq, 20, 30)
 
 
-def gamma(x: np.ndarray) -> np.ndarray:
+def gamma(x: np.ndarray, sfreq: float) -> np.ndarray:
     """Gamma rhythm (30-45 Hz): the fastest waves we keep."""
-    return band_power(x, 30, 45)
+    return band_power(x, sfreq, 30, 45)
 
 
 # ================================================================
 # 3. Section: Mapped
 # ================================================================
 TIME_FEATURE_FUNCTIONS = [mav, std, maxav, rms, wl, ssc, log_det]
-FREQ_FEATURE_FUNCTIONS = [theta, alpha, beta_low, beta_high, gamma]
+FREQ_FEATURE_FUNCTIONS = [
+    total_power,
+    mean_freq,
+    median_freq,
+    peak_freq,
+    theta,
+    alpha,
+    beta_low,
+    beta_high,
+    gamma,
+]
 
 # The features the model uses. The frequency ones are slow on the board: for the board
 # keep only TIME_FEATURE_FUNCTIONS
@@ -110,14 +182,20 @@ FEATURE_FUNCTIONS = TIME_FEATURE_FUNCTIONS + FREQ_FEATURE_FUNCTIONS
 # ================================================================
 # 4. Section: FUNCTIONS
 # ================================================================
-def get_features(windows: np.ndarray) -> np.ndarray:
+def get_features(windows: np.ndarray, sfreq: float = SAMPLING_HZ) -> np.ndarray:
     """Compute the features of every channel of every window.
 
     Returns a table with one row per window and one column per feature and
     channel: first the values of the first feature for all channels, then of the
     second feature, and so on.
     """
-    columns = [function(windows) for function in FEATURE_FUNCTIONS]
+    columns = []
+    for function in FEATURE_FUNCTIONS:
+        # The frequency features need to know how many samples there are per second
+        if function in FREQ_FEATURE_FUNCTIONS:
+            columns.append(function(windows, sfreq))
+        else:
+            columns.append(function(windows))
     return np.concatenate(columns, axis=1)
 
 
