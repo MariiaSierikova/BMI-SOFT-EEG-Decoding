@@ -59,7 +59,8 @@ class CutTrialsStep(PruneStep[TrialData, TrialData]):
 
             trials.append(actor.copy_with(
                 signal_ch=actor.signal_ch[:, first:last],
-                markers=np.vstack([movement_row, phase_row]),
+                markers=np.vstack([movement_row, phase_row]),                 
+                windows=[window],
                 file_name=f"{actor.file_name}_{window.movement}_{window.repetition:02d}",
             ))
         return trials
