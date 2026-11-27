@@ -87,7 +87,7 @@ class TTVSplitStep(PruneStep[TrialData, Dataset]):
         if self.user_balance:
             key.append(actor.subject_number)
         if self.movement_balance:
-            key.append(_dominant_movement(actor.markers))
+            key.append(_dominant_movement(actor.markers[0]))
         return tuple(key)
 
     def _split_groups(

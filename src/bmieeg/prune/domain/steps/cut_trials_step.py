@@ -19,7 +19,8 @@ from .step_registry import StepRegistry
 class CutTrialsStep(PruneStep[TrialData, TrialData]):
     """Cuts every trial out of a whole recording, after the filters have worked on it.
 
-    The markers of a trial hold the code of its movement all the way through.
+    A trial gets two rows of markers: the code of its movement all the way through, and the code
+    of the phase of every sample (from the unified markers `XXDD`, 0 for MOVING).
     """
 
     name: ClassVar[str] = "cut_trials"
@@ -50,10 +51,15 @@ class CutTrialsStep(PruneStep[TrialData, TrialData]):
                 raise ValueError(f"{actor.file_name}: the trial {window} is outside of the recording")
 
             code = self.movement_codes[window.movement]
+
+            movement_row = np.full(last - first, code, dtype=np.int64)
+            phase_row = actor.markers[0, first:last] // 100
+            # The start of the trial is rounded to a sample, it can still hold the phase before
+            phase_row[0] = phase_row[1]
+
             trials.append(actor.copy_with(
                 signal_ch=actor.signal_ch[:, first:last],
-                markers=np.full((1, last - first), code, dtype=np.int64),
-                windows=[window],
+                markers=np.vstack([movement_row, phase_row]),
                 file_name=f"{actor.file_name}_{window.movement}_{window.repetition:02d}",
             ))
         return trials

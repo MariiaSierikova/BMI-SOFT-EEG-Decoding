@@ -13,7 +13,8 @@ from .data_actor import DataActor
 from .trial_data import TrialData
 
 PartitionName = Literal["train", "val", "test"]
-_STIM_CH_NAME = "STI 014"
+# One stim channel for every row of the markers: the movement, then the phase
+_STIM_CH_NAMES = ["STI 014", "PHASE"]
 
 
 # ================================================================
@@ -48,14 +49,15 @@ def _trial_to_raw(trial: TrialData) -> mne.io.RawArray:
             f"trial {trial.file_name!r} has no signal_type; cannot type its channels"
         )
 
-    # Stack the per-sample markers under the signal as a dedicated stim channel.
+    # Stack the per-sample markers under the signal as dedicated stim channels.
+    stim_names = _STIM_CH_NAMES[:trial.markers.shape[0]]
     data = np.vstack([trial.signal_ch, trial.markers])
-    ch_names = [*trial.channel_names, _STIM_CH_NAME]
+    ch_names = [*trial.channel_names, *stim_names]
 
     # Type every channel as the signal modality, then retag the markers row.
     info = mne.create_info(
         ch_names=ch_names, sfreq=trial.sfreq, ch_types=trial.signal_type
     )
     raw = mne.io.RawArray(data, info, verbose="ERROR")
-    raw.set_channel_types({_STIM_CH_NAME: "stim"})
+    raw.set_channel_types({name: "stim" for name in stim_names})
     return raw

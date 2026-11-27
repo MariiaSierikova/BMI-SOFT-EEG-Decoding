@@ -124,7 +124,9 @@ Quantizes the part of the full scale to the signed counts of the converter: `rin
 - `bits: int`: resolution of the converter, 2 to 32.
 
 ### CutTrialsStep - `cut_trials` (`TrialData → TrialData`)
-Cuts every trial listed in `windows` out of the whole recording. The markers of a trial hold the code of its movement all the way through.
+Cuts every trial listed in `windows` out of the whole recording. A trial gets two rows of markers, saved as two stim channels:
+- `STI 014`: the code of its movement, all the way through.
+- `PHASE`: the phase of every sample, from the unified markers: 2 prep, 3 move, 4 return, 5 iti (the pause). MOVING has no markers, its `PHASE` is 0.
 
 - `movement_codes: dict[str, int]`: name of the movement to a code from 0 to 99. A movement without a code raises `ValueError`.
 
@@ -136,7 +138,7 @@ Cuts each trial into one window per movement onset (a run of non-zero `DD`), `[o
 
 ### TTVSplitStep - `ttv_split` (`TrialData → Dataset`)
 Shuffles the trials (seeded) into train/val/test, optionally for every person or every movement on its own. It produces one `Dataset`:
-- `client`: `train`, `val` and `test`. The client test markers are zeroed out.
+- `client`: `train`, `val` and `test`. The client test markers (movement and phase) are zeroed out.
 - `server`: `test` with its markers, for scoring.
 
 - `train_ratio`, `val_ratio`, `test_ratio: float`: must sum to 1.
